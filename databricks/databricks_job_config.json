@@ -1,0 +1,73 @@
+{
+  "name": "finance-pipeline-medallion-job",
+  "tags": {
+    "project": "real-time-financial-intelligence-pipeline"
+  },
+  "job_clusters": [
+    {
+      "job_cluster_key": "finance_cluster",
+      "new_cluster": {
+        "spark_version": "14.3.x-scala2.12",
+        "node_type_id": "Standard_DS3_v2",
+        "num_workers": 2,
+        "spark_conf": {
+          "spark.databricks.delta.preview.enabled": "true"
+        },
+        "azure_attributes": {
+          "availability": "ON_DEMAND_AZURE",
+          "first_on_demand": 1
+        }
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "task_key": "bronze_ingestion",
+      "job_cluster_key": "finance_cluster",
+      "notebook_task": {
+        "notebook_path": "/Repos/finance-pipeline/databricks/notebooks/01_bronze_ingestion",
+        "base_parameters": {
+          "kafka_broker": "{{job.parameters.kafka_broker}}",
+          "storage_account": "{{job.parameters.storage_account}}",
+          "container": "bronze",
+          "checkpoint_path": "/checkpoints/bronze/finance_ticks"
+        }
+      },
+      "timeout_seconds": 0
+    },
+    {
+      "task_key": "silver_transformation",
+      "depends_on": [{ "task_key": "bronze_ingestion" }],
+      "job_cluster_key": "finance_cluster",
+      "notebook_task": {
+        "notebook_path": "/Repos/finance-pipeline/databricks/notebooks/02_silver_transformation",
+        "base_parameters": {
+          "storage_account": "{{job.parameters.storage_account}}"
+        }
+      },
+      "timeout_seconds": 3600
+    },
+    {
+      "task_key": "gold_aggregation",
+      "depends_on": [{ "task_key": "silver_transformation" }],
+      "job_cluster_key": "finance_cluster",
+      "notebook_task": {
+        "notebook_path": "/Repos/finance-pipeline/databricks/notebooks/03_gold_aggregation",
+        "base_parameters": {
+          "storage_account": "{{job.parameters.storage_account}}"
+        }
+      },
+      "timeout_seconds": 3600
+    }
+  ],
+  "parameters": [
+    { "name": "kafka_broker", "default": "<your-kafka-broker>:9092" },
+    { "name": "storage_account", "default": "<your-storage-account>" }
+  ],
+  "schedule": {
+    "quartz_cron_expression": "0 0 2 * * ?",
+    "timezone_id": "UTC",
+    "pause_status": "UNPAUSED"
+  },
+  "max_concurrent_runs": 1
+}

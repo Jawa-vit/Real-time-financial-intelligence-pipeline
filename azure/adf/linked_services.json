@@ -1,0 +1,59 @@
+{
+  "_comment": "Three linked services this pipeline needs. Deploy each individually via Azure Portal, ADF Studio, the az CLI, or Terraform/Bicep -- ADF accepts each as its own JSON resource.",
+
+  "LS_ADLS_Gen2": {
+    "name": "LS_ADLS_Gen2",
+    "properties": {
+      "type": "AzureBlobFS",
+      "typeProperties": {
+        "url": "https://<your-storage-account>.dfs.core.windows.net",
+        "accountKey": {
+          "type": "AzureKeyVaultSecret",
+          "store": { "referenceName": "LS_KeyVault", "type": "LinkedServiceReference" },
+          "secretName": "adls-account-key"
+        }
+      }
+    }
+  },
+
+  "LS_AzureDatabricks": {
+    "name": "LS_AzureDatabricks",
+    "properties": {
+      "type": "AzureDatabricks",
+      "typeProperties": {
+        "domain": "https://<your-databricks-workspace>.azuredatabricks.net",
+        "accessToken": {
+          "type": "AzureKeyVaultSecret",
+          "store": { "referenceName": "LS_KeyVault", "type": "LinkedServiceReference" },
+          "secretName": "databricks-pat-token"
+        },
+        "existingClusterId": "<optional-existing-cluster-id-or-omit-to-use-job-cluster>"
+      }
+    }
+  },
+
+  "LS_AzurePostgreSql": {
+    "name": "LS_AzurePostgreSql",
+    "properties": {
+      "type": "AzurePostgreSql",
+      "typeProperties": {
+        "connectionString": "Host=<your-postgres-server>.postgres.database.azure.com;Port=5432;Database=finance;UID=<admin-user>;",
+        "password": {
+          "type": "AzureKeyVaultSecret",
+          "store": { "referenceName": "LS_KeyVault", "type": "LinkedServiceReference" },
+          "secretName": "postgres-admin-password"
+        }
+      }
+    }
+  },
+
+  "LS_KeyVault": {
+    "name": "LS_KeyVault",
+    "properties": {
+      "type": "AzureKeyVault",
+      "typeProperties": {
+        "baseUrl": "https://<your-keyvault-name>.vault.azure.net/"
+      }
+    }
+  }
+}

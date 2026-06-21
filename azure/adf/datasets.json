@@ -1,0 +1,26 @@
+{
+  "DS_ADLS_Gold_Delta": {
+    "name": "DS_ADLS_Gold_Delta",
+    "properties": {
+      "type": "DeltaLake",
+      "linkedServiceName": { "referenceName": "LS_ADLS_Gen2", "type": "LinkedServiceReference" },
+      "typeProperties": {
+        "folderPath": "gold/finance_daily"
+      }
+    }
+  },
+
+  "DS_Postgres_GoldDailyMetrics": {
+    "name": "DS_Postgres_GoldDailyMetrics",
+    "properties": {
+      "type": "AzurePostgreSqlTable",
+      "linkedServiceName": { "referenceName": "LS_AzurePostgreSql", "type": "LinkedServiceReference" },
+      "typeProperties": {
+        "schema": "public",
+        "table": "gold_daily_metrics"
+      }
+    }
+  },
+
+  "_trigger_note": "Pair this with a Tumbling Window or Schedule trigger, e.g. TR_Nightly_2AM_UTC, recurrence: every 1 day at 02:00 UTC, after the Databricks bronze->silver streaming job has had time to land that day's data."
+}

@@ -1,0 +1,104 @@
+{
+  "name": "pipeline_finance_etl",
+  "properties": {
+    "description": "Orchestrates the nightly finance pipeline: runs the Databricks medallion job (bronze/silver/gold), then copies the gold Delta table from ADLS into PostgreSQL for Power BI consumption.",
+    "activities": [
+      {
+        "name": "RunDatabricksGoldJob",
+        "type": "DatabricksNotebook",
+        "linkedServiceName": {
+          "referenceName": "LS_AzureDatabricks",
+          "type": "LinkedServiceReference"
+        },
+        "typeProperties": {
+          "notebookPath": "/Repos/finance-pipeline/databricks/notebooks/03_gold_aggregation",
+          "baseParameters": {
+            "storage_account": "@pipeline().parameters.storageAccount"
+          }
+        },
+        "policy": {
+          "timeout": "01:00:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 60
+        }
+      },
+      {
+        "name": "CopyGoldToPostgres",
+        "type": "Copy",
+        "dependsOn": [
+          {
+            "activity": "RunDatabricksGoldJob",
+            "dependencyConditions": ["Succeeded"]
+          }
+        ],
+        "typeProperties": {
+          "source": {
+            "type": "DeltaSource",
+            "datasetSettings": {
+              "type": "DeltaLake"
+            }
+          },
+          "sink": {
+            "type": "AzurePostgreSqlSink",
+            "writeBehavior": "upsert",
+            "upsertSettings": {
+              "keys": ["symbol", "trade_date"]
+            },
+            "preCopyScript": "DELETE FROM staging.gold_daily_metrics WHERE trade_date = CURRENT_DATE - INTERVAL '1 day';"
+          },
+          "enableStaging": false,
+          "translator": {
+            "type": "TabularTranslator",
+            "mappings": [
+              { "source": { "name": "symbol" }, "sink": { "name": "symbol" } },
+              { "source": { "name": "trade_date" }, "sink": { "name": "trade_date" } },
+              { "source": { "name": "open_price" }, "sink": { "name": "open_price" } },
+              { "source": { "name": "high_price" }, "sink": { "name": "high_price" } },
+              { "source": { "name": "low_price" }, "sink": { "name": "low_price" } },
+              { "source": { "name": "close_price" }, "sink": { "name": "close_price" } },
+              { "source": { "name": "total_volume" }, "sink": { "name": "total_volume" } },
+              { "source": { "name": "avg_price" }, "sink": { "name": "avg_price" } },
+              { "source": { "name": "volatility" }, "sink": { "name": "volatility" } },
+              { "source": { "name": "pct_change" }, "sink": { "name": "pct_change" } },
+              { "source": { "name": "rsi_14" }, "sink": { "name": "rsi_14" } }
+            ]
+          }
+        },
+        "inputs": [
+          { "referenceName": "DS_ADLS_Gold_Delta", "type": "DatasetReference" }
+        ],
+        "outputs": [
+          { "referenceName": "DS_Postgres_GoldDailyMetrics", "type": "DatasetReference" }
+        ]
+      },
+      {
+        "name": "NotifyOnFailure",
+        "type": "WebActivity",
+        "dependsOn": [
+          {
+            "activity": "CopyGoldToPostgres",
+            "dependencyConditions": ["Failed"]
+          }
+        ],
+        "typeProperties": {
+          "url": "@pipeline().parameters.alertWebhookUrl",
+          "method": "POST",
+          "body": {
+            "text": "finance-pipeline ETL failed in ADF. Check Databricks job run and Copy activity logs."
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "storageAccount": {
+        "type": "string",
+        "defaultValue": "<your-storage-account>"
+      },
+      "alertWebhookUrl": {
+        "type": "string",
+        "defaultValue": "<teams-or-slack-webhook-url>"
+      }
+    },
+    "annotations": ["finance", "medallion", "nightly-batch"]
+  }
+}

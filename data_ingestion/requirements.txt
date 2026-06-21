@@ -1,0 +1,4 @@
+yfinance==0.2.40
+kafka-python==2.0.2
+jsonschema==4.22.0
+python-dotenv==1.0.1
